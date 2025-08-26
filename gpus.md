@@ -1,7 +1,7 @@
 ---
 layout: distill
 title: "如何理解 GPU"
-description: "我们在 Google 热爱 TPU, 但 GPU 也很棒. 本章将深入探讨 NVIDIA GPU 的世界——每个芯片如何工作, 它们如何联网, 以及这对 LLM 意味着什么, 特别是与 TPU 相比. 本节建立在 <a href='https://jax-ml.github.io/scaling-book/tpus/'>第 2 章</a> 和 <a href='https://jax-ml.github.io/scaling-book/training'>第 5 章</a> 的基础上, 建议您先阅读它们."
+description: "我们在 Google 热爱 TPU, 但 GPU 也很棒. 本章将深入探讨 NVIDIA GPU 的世界——每个芯片如何工作, 它们如何联网, 以及这对 LLM 意味着什么, 特别是与 TPU 相比. 本节建立在 <a href='https://lqhl.github.io/scaling-book/tpus/'>第 2 章</a> 和 <a href='https://lqhl.github.io/scaling-book/training'>第 5 章</a> 的基础上, 建议您先阅读它们."
 date: 2025-08-18
 future: true
 htmlwidgets: true
@@ -303,7 +303,7 @@ Blackwell (B200) 的节点有 8 个 GPU. GB200NVL72 支持更大的 72 个 GPU �
 
 {% enddetails %}
 
-**问题 3 [AllGather 成本]**: 给定一个 B 字节的数组, 一个 (吞吐量受限的) AllGather 在一个 8xH100 节点上需要多长时间? 对 bf16[D<sub>X</sub>, F] 进行计算, 其中 `D=4096`, `F=65,536`. *在回答这个问题之前, 值得阅读 TPU 集合操作的[部分](https://jax-ml.github.io/scaling-book/sharding/). 在这里思考一下, 但我们接下来会更详细地讨论集合操作.*
+**问题 3 [AllGather 成本]**: 给定一个 B 字节的数组, 一个 (吞吐量受限的) AllGather 在一个 8xH100 节点上需要多长时间? 对 bf16[D<sub>X</sub>, F] 进行计算, 其中 `D=4096`, `F=65,536`. *在回答这个问题之前, 值得阅读 TPU 集合操作的[部分](https://lqhl.github.io/scaling-book/sharding/). 在这里思考一下, 但我们接下来会更详细地讨论集合操作.*
 
 {% details 点击这里查看答案. %}
 

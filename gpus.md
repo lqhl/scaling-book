@@ -102,7 +102,7 @@ _styles: >
 
 {% include figure.liquid path="assets/gpu/blackwell-sm.png" class="img-small" caption="<b>图:</b> H100 SM 的示意图 (<a href='https://wccftech.com/nvidia-hopper-gh100-gpu-official-5nm-process-worlds-fastest-hpc-chip-80-billion-transistors-hbm3-memory/'>来源</a>), 展示了 4 个<i>子分区</i>, 每个子分区包含一个张量核心, Warp 调度器, 寄存器文件, 以及不同精度的 CUDA 核心集. 底部附近的 'L1 数据缓存' 是 256kB 的 SMEM 单元. B200 看起来类似, 但增加了大量的张量内存 (TMEM) 来为庞大的张量核心提供数据." %}
 
-每个 SM 被分成 4 个相同的象限, NVIDIA 称之为 **SM 子分区**, 每个子分区包含一个张量核心, 16k 个 32 位寄存器, 以及一个称为 Warp 调度器的 SIMD/SIMT 向量算术单元, 其通道 (ALU) NVIDIA 称之为 **CUDA 核心**. 每个分区 Arguably 的核心组件是执行矩阵乘法的张量核心, 它构成了其绝大部分的 FLOPs/s, 但它并非唯一值得注意的组件.
+每个 SM 被分成 4 个相同的象限, NVIDIA 称之为 **SM 子分区**, 每个子分区包含一个张量核心, 16k 个 32 位寄存器, 以及一个称为 Warp 调度器的 SIMD/SIMT 向量算术单元, 其通道 (ALU) NVIDIA 称之为 **CUDA 核心**. 每个分区的核心组件可以说是执行矩阵乘法的张量核心, 它构成了其绝大部分的 FLOPs/s, 但它并非唯一值得注意的组件.
 
 *   **CUDA 核心:** 每个子分区包含一组称为 CUDA 核心的 ALU, 用于执行 SIMD/SIMT 向量运算. 每个 ALU 通常每个周期可以执行 1 次算术运算, 例如 f32.add.<d-footnote>较新的 GPU 支持 FMA (融合乘加) 指令, 严格来说每个周期执行两次 FLOP, NVIDIA 无情地利用这一事实将其报告的规格翻倍.</d-footnote> 每个子分区包含 32 个 fp32 核心 (以及数量较少的 int32 和 fp64 核心), 它们在每个周期都执行相同的指令. 与 TPU 的 VPU 类似, CUDA 核心负责 ReLU, 逐点向量运算和归约 (求和).<d-footnote>历史上, 在引入张量核心之前, CUDA 核心是 GPU 的主要组件, 用于渲染, 包括光线-三角形相交和着色. 在今天的游戏 GPU 上, 它们仍然承担着大量的渲染工作, 而张量核心则用于上采样 (DLSS), 这使得 GPU 能够以较低的分辨率进行渲染 (像素越少 = 工作量越少), 并使用机器学习进行上采样.</d-footnote>
 

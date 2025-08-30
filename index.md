@@ -1,9 +1,9 @@
 ---
 layout: distill
-title: "How to Scale Your Model"
-subtitle: "A Systems View of LLMs on TPUs"
+title: "如何扩展你的模型"
+subtitle: "从系统视角看TPU上的大语言模型"
 # permalink: /main/
-description: "Training LLMs often feels like alchemy, but understanding and optimizing the performance of your models doesn't have to. This book aims to demystify the science of scaling language models: how TPUs (and GPUs) work and how they communicate with each other, how LLMs run on real hardware, and how to parallelize your models during training and inference so they run efficiently at massive scale. If you've ever wondered “how expensive should this LLM be to train” or “how much memory do I need to serve this model myself” or “what's an AllGather”, we hope this will be useful to you."
+description: "训练大语言模型（LLMs，Large Language Models）常常感觉像炼金术，但理解和优化模型性能不必如此。本书旨在揭开扩展语言模型的科学：TPU（和GPU）如何工作以及它们如何相互通信，LLM如何在真实硬件上运行，以及如何在训练和推理期间并行化模型以实现大规模高效运行。如果你曾经想知道'训练这个LLM应该花费多少成本'或'我自己服务这个模型需要多少内存'或'什么是AllGather'，我们希望这本书对你有用。"
 date: 2025-02-04
 future: true
 htmlwidgets: true
@@ -14,10 +14,10 @@ giscus_comments: true
 section_number: 0
 
 previous_section_url: ""
-previous_section_name: "Part 0: Intro"
+previous_section_name: "第0部分：介绍"
 
 next_section_url: roofline
-next_section_name: "Part 1: Rooflines"
+next_section_name: "第1部分：性能上限分析"
 
 bibliography: main.bib
 
@@ -54,8 +54,8 @@ authors:
 #     for hyperlinks within the post to work correctly.
 #   - please use this format rather than manually creating a markdown table of contents.
 toc:
-  - name: High-Level Outline
-  - name: Links to Sections
+  - name: 高层概述
+  - name: 章节链接
 
 # Below is an example of injecting additional post-specific styles.
 # This is used in the 'Layouts' section of this post.
@@ -79,90 +79,90 @@ _styles: >
 
 {% include figure.liquid path="assets/img/dragon.png" class="img-fluid" %}
 
-Much of deep learning still boils down to a kind of black magic, but optimizing the performance of your models doesn't have to — even at huge scale! Relatively simple principles apply everywhere — from dealing with a single accelerator to tens of thousands — and understanding them lets you do many useful things:
+深度学习在很大程度上仍然像一种黑魔法，但优化模型性能不必如此——即使在大规模情况下也是如此！相对简单的原则适用于各个层面——从处理单个加速器到处理数万个加速器——理解这些原则可以让你做很多有用的事情：
 
-- Ballpark how close parts of your model are to their theoretical optimum.
-- Make informed choices about different parallelism schemes at different scales (how you split the computation across multiple devices).
-- Estimate the cost and time required to train and run large Transformer models.
-- Design algorithms that take advantage of [specific](https://arxiv.org/abs/2205.14135) [hardware](https://arxiv.org/abs/1911.02150) [affordances](https://arxiv.org/abs/2007.00072).
-- Design hardware driven by an explicit understanding of what limits current algorithm performance.
+- 大致估算模型各部分接近理论最优值的程度
+- 在不同规模下做出明智的并行方案选择（如何在多个设备间分割计算）
+- 估算训练和运行大型Transformer模型所需的成本和时间
+- 设计利用[特定](https://arxiv.org/abs/2205.14135)[硬件](https://arxiv.org/abs/1911.02150)[特性](https://arxiv.org/abs/2007.00072)的算法
+- 基于对当前算法性能限制的明确理解来设计硬件
 
-**Expected background:** We're going to assume you have a basic understanding of LLMs and the Transformer architecture but not necessarily how they operate at scale. You should know the basics of LLM training and ideally have some basic familiarity with JAX. Some useful background reading might include [this blog post](https://jalammar.github.io/illustrated-transformer/) on the Transformer architecture and [the original Transformer paper](https://arxiv.org/abs/1706.03762). Also check [this list](conclusion#further-reading) out for more useful concurrent and future reading.
+**预期背景：** 我们假设你对LLM（大语言模型）和Transformer架构有基本了解，但不一定了解它们在大规模下的运行方式。你应该了解LLM训练的基础知识，最好对JAX有一些基本熟悉。一些有用的背景阅读可能包括关于Transformer架构的[这篇博客文章](https://jalammar.github.io/illustrated-transformer/)和[原始Transformer论文](https://arxiv.org/abs/1706.03762)。还可以查看[这个列表](conclusion#further-reading)获取更多有用的并发和未来阅读材料。
 
-**Goals & Feedback:** By the end, you should feel comfortable estimating the best parallelism scheme for a Transformer model on a given hardware platform, and roughly how long training and inference should take. If you don't, email us or leave a comment! We'd love to know how we could make this clearer.
+**目标与反馈：** 到最后，你应该能够自信地估算在给定硬件平台上Transformer模型的最佳并行方案，以及训练和推理大致需要多长时间。如果不能，请给我们发邮件或留言！我们很想知道如何能让这些内容更清晰。
 
-<p markdown=1 class="announce">You might also enjoy reading the new [Section 12](gpus) on NVIDIA GPUs!</p>
+<p markdown=1 class="announce">你可能也会喜欢阅读新的[第12节](gpus)关于NVIDIA GPU的内容！</p>
 
-### Why should you care?
+### 为什么你应该关心？
 
-Three or four years ago, I don't think most ML researchers would have needed to understand any of the content in this book. But today even “small” models run so close to hardware limits that doing novel research requires you to think about efficiency at scale.<d-footnote>Historically, ML research has followed something of a tick-tock cycle between systems innovations and software improvements. Alex Krizhevsky had to write unholy CUDA code to make CNNs fast but within a couple years, libraries like Theano and TensorFlow meant you didn't have to. Maybe that will happen here too and everything in this book will be abstracted away in a few years. But scaling laws have pushed our models perpetually to the very frontier of our hardware, and it seems likely that, in the near future, doing cutting edge research will be inextricably tied to an understanding of how to efficiently scale models to large hardware topologies.</d-footnote> **A 20% win on benchmarks is irrelevant if it comes at a 20% cost to roofline efficiency.** Promising model architectures routinely fail either because they _can't_ run efficiently at scale or because no one puts in the work to make them do so.
+三四年前，我认为大多数ML研究人员不需要理解本书中的任何内容。但如今即使是"小型"模型也运行得如此接近硬件极限，以至于进行新颖的研究需要你考虑大规模效率。<d-footnote>历史上，ML研究在系统创新和软件改进之间遵循着某种滴答周期。Alex Krizhevsky不得不编写复杂的CUDA代码来使CNN快速运行，但几年之内，像Theano和TensorFlow这样的库意味着你不需要这样做。也许这里也会发生同样的情况，几年后本书中的所有内容都会被抽象掉。但扩展定律已经将我们的模型永久推向了硬件的极限，在不久的将来，进行前沿研究似乎将不可避免地与理解如何有效地将模型扩展到大型硬件拓扑结构联系在一起。</d-footnote> **如果在基准测试中获得20%的胜利却以20%的性能上限效率为代价，那么这种胜利是无关紧要的。** 有前途的模型架构经常失败，要么是因为它们_无法_在大规模下高效运行，要么是因为没有人投入工作使它们做到这一点。
 
-**The goal of “model scaling” is to be able to increase the number of chips used for training or inference while achieving a proportional, linear increase in throughput.** This is known as "*strong scaling*". Although adding additional chips ("parallelism") usually decreases the computation time, it also comes at the cost of added communication between chips. When communication takes longer than computation we become "communication bound" and cannot scale strongly.<d-footnote>As your computation time decreases, you also typically face bottlenecks at the level of a single chip. Your shiny new TPU or GPU may be rated to perform 500 trillion operations-per-second, but if you aren't careful it can just as easily do a tenth of that if it's bogged down moving parameters around in memory. The interplay of per-chip computation, memory bandwidth, and total memory is critical to the scaling story.</d-footnote> If we understand our hardware well enough to anticipate where these bottlenecks will arise, we can design or reconfigure our models to avoid them.<d-footnote>Hardware designers face the inverse problem: building hardware that provides just enough compute, bandwidth, and memory for our algorithms while minimizing cost. You can imagine how stressful this "co-design" problem is: you have to bet on what algorithms will look like when the first chips actually become available, often 2 to 3 years down the road. The story of the TPU is a resounding success in this game. Matrix multiplication is a unique algorithm in the sense that it uses far more FLOPs per byte of memory than almost any other (N FLOPs per byte), and early TPUs and their systolic array architecture achieved far better perf / $ than GPUs did at the time they were built. TPUs were designed for ML workloads, and GPUs with their TensorCores are rapidly changing to fill this niche as well. But you can imagine how costly it would have been if neural networks had not taken off, or had changed in some fundamental way that TPUs (which are inherently less flexible than GPUs) could not handle.</d-footnote>
+**"模型扩展"的目标是能够增加用于训练或推理的芯片数量，同时实现成比例的线性吞吐量增长。** 这被称为"*强扩展*"。虽然添加额外的芯片（"并行性"）通常会减少计算时间，但也会带来芯片间增加的通信成本。当通信时间超过计算时间时，我们变得"通信受限"，无法进行强扩展。<d-footnote>随着计算时间的减少，你通常还会在单个芯片层面遇到瓶颈。你闪亮的新TPU或GPU可能额定执行500万亿次操作/秒，但如果不小心，如果它被在内存中移动参数所拖累，它可能很容易只做到十分之一。每芯片计算、内存带宽和总内存的相互作用对于扩展故事至关重要。</d-footnote> 如果我们足够了解硬件以预测这些瓶颈将在何处出现，我们就可以设计或重新配置模型来避免它们。<d-footnote>硬件设计者面临相反的问题：构建提供足够计算、带宽和内存的硬件，同时最小化成本。你可以想象这个"协同设计"问题有多紧张：你必须赌注在第一批芯片实际可用时算法会是什么样子，通常是2到3年后。TPU的故事在这个游戏中是一个响亮的成功。矩阵乘法是一个独特的算法，因为它使用的每字节内存的FLOPs（浮点操作次数）比几乎所有其他算法都多（每字节N FLOPs），早期的TPU及其脉动阵列架构在当时比GPU实现了更好的性能/美元比。TPU是为ML工作负载设计的，带有TensorCore的GPU也在迅速改变以填补这个利基市场。但你可以想象，如果神经网络没有起飞，或者以某种TPU（本质上不如GPU灵活）无法处理的基本方式发生变化，那将是多么昂贵。</d-footnote>
 
-*Our goal in this book is to explain how TPU (and GPU) hardware works and how the Transformer architecture has evolved to perform well on current hardware. We hope this will be useful both for researchers designing new architectures and for engineers working to make the current generation of LLMs run fast.*
+*我们在本书中的目标是解释TPU（和GPU）硬件如何工作，以及Transformer架构如何演变为在当前硬件上表现良好。我们希望这对设计新架构的研究人员和使用当前一代LLM运行的工程师都有用。*
 
-## High-Level Outline
+## 高层概述
 
-The overall structure of this book is as follows:
+本书的整体结构如下：
 
-[Section 1](roofline) explains roofline analysis and what factors can limit our ability to scale (communication, computation, and memory). [Section 2](tpus) and [Section 3](sharding) talk in detail about how TPUs work, both as individual chips and — of critical importance — as an interconnected system with inter-chip links of limited bandwidth and latency. We'll answer questions like:
+[第1节](roofline)解释了性能上限分析以及哪些因素可能限制我们的扩展能力（通信、计算和内存）。[第2节](tpus)和[第3节](sharding)详细讨论了TPU如何工作，既作为单个芯片，又作为具有有限带宽和延迟的互连芯片系统——这一点至关重要。我们将回答以下问题：
 
-* How long should a matrix multiply of a certain size take? At what point is it bound by compute or by memory or communication bandwidth?
-* How are TPUs wired together to form training clusters? How much bandwidth does each part of the system have?
-* How long does it take to gather, scatter, or re-distribute arrays across multiple TPUs?
-* How do we efficiently multiply matrices that are distributed differently across devices?
+* 特定大小的矩阵乘法应该需要多长时间？在什么情况下它受计算、内存或通信带宽的限制？
+* TPU如何连接形成训练集群？系统的每个部分有多少带宽？
+* 在多个TPU之间收集、分散或重新分配数组需要多长时间？
+* 我们如何高效地乘以在不同设备上分布不同的矩阵？
 
-{% include figure.liquid path="assets/img/pointwise-product.gif" class="img-small" caption="<b>Figure:</b> a diagram from <a href='tpus'>Section 2</a> showing how a TPU performs an elementwise product. Depending on the size of our arrays and the bandwidth of various links, we can find ourselves compute-bound (using the full hardware compute capacity) or comms-bound (bottlenecked by memory loading)." %}
+{% include figure.liquid path="assets/img/pointwise-product.gif" class="img-small" caption="<b>图：</b>来自<a href='tpus'>第2节</a>的图表，显示TPU如何执行逐元素乘积。根据数组大小和各种链路的带宽，我们可能会发现自己受计算限制（使用完整的硬件计算能力）或受通信限制（受内存加载瓶颈）。" %}
 
-Five years ago ML had a colorful landscape of architectures — ConvNets, LSTMs, MLPs, Transformers — but now we mostly just have the Transformer<d-cite key="transformers"></d-cite>. We strongly believe it's worth understanding every piece of the Transformer architecture: the exact sizes of every matrix, where normalization occurs, how many parameters and FLOPs<d-footnote>FLoating point OPs, basically the total number of adds and multiplies required. While many sources take FLOPs to mean "operations per second", we use FLOPs/s to indicate that explicitly.</d-footnote> are in each part. [Section 4](transformers) goes through this “Transformer math” carefully, showing how to count the parameters and FLOPs for both training and inference. This tells us how much memory our model will use, how much time we'll spend on compute or comms, and when attention will become important relative to the feed-forward blocks.
+五年前，ML有着丰富多彩的架构景观——ConvNets、LSTMs、MLPs、Transformers——但现在我们主要只有Transformer<d-cite key="transformers"></d-cite>。我们坚信值得理解Transformer架构的每一个部分：每个矩阵的确切大小、归一化发生的位置、每个部分有多少参数和FLOPs<d-footnote>FLoating point OPs，基本上是所需的加法和乘法总数。虽然许多来源将FLOPs理解为"每秒操作数"，但我们使用FLOPs/s来明确表示这一点。</d-footnote>。[第4节](transformers)仔细介绍了这种"Transformer数学"，展示了如何计算训练和推理的参数数量和FLOPs。这告诉我们模型将使用多少内存，我们将花费多少时间在计算或通信上，以及注意力相对于前馈块何时变得重要。
 
-{% include figure.liquid path="assets/img/transformer-diagram.png" class="img-fluid" caption="<b>Figure:</b> a standard Transformer layer with each matrix multiplication (matmul) shown as a dot inside a circle. All parameters (excluding norms) are shown in purple. <a href='transformers'>Section 4</a> walks through this diagram in more detail." %}
+{% include figure.liquid path="assets/img/transformer-diagram.png" class="img-fluid" caption="<b>图：</b>标准Transformer层，每个矩阵乘法（matmul）显示为圆圈内的点。所有参数（不包括归一化）以紫色显示。<a href='transformers'>第4节</a>更详细地讲解了这个图表。" %}
 
-[Section 5: Training](training) and [Section 7: Inference](inference) are the core of this essay, where we discuss the fundamental question: given a model of some size and some number of chips, how do I parallelize my model to stay in the “strong scaling” regime? This is a simple question with a surprisingly complicated answer. At a high level, there are 4 primary parallelism techniques used to split models over multiple chips (**data**, **tensor**, **pipeline** and **expert**), and a number of other techniques to reduce the memory requirements (**rematerialisation**, **optimizer/model sharding (aka ZeRO)**, **host offload**, **gradient accumulation**). We discuss many of these here.
+[第5节：训练](training)和[第7节：推理](inference)是本文的核心，我们在这里讨论基本问题：给定某个大小的模型和一定数量的芯片，我如何并行化我的模型以保持在"强扩展"状态？这是一个简单的问题，但答案却出奇地复杂。在高层面上，有4种主要的并行技术用于在多个芯片上分割模型（**数据**、**张量**、**流水线**和**专家**并行），以及许多其他减少内存需求的技术（**重计算**、**优化器/模型分片（又名ZeRO）**、**主机卸载**、**梯度累积**）。我们在这里讨论其中的许多技术。
 
-We hope by the end of these sections you should be able to choose among them yourself for new architectures or settings. [Section 6](applied-training) and [Section 8](applied-inference) are practical tutorials that apply these concepts to LLaMA-3, a popular open-source model.
+我们希望到这些章节结束时，你应该能够为自己选择新的架构或设置。[第6节](applied-training)和[第8节](applied-inference)是将这些概念应用于LLaMA-3（一个流行的开源模型）的实践教程。
 
-Finally, [Section 9](profiling) and [Section 10](jax-stuff) look at how to implement some of these ideas in JAX and how to profile and debug your code when things go wrong. [Section 12](gpus) is a new section that dives into GPUs as well.
+最后，[第9节](profiling)和[第10节](jax-stuff)探讨了如何在JAX中实现其中一些想法，以及当出现问题时如何分析和调试代码。[第12节](gpus)是一个新章节，也深入探讨了GPU。
 
-Throughout we try to give you problems to work for yourself. Please feel no pressure to read all the sections or read them in order. And please leave feedback. For the time being, this is a draft and will continue to be revised. Thank you!
+在整个过程中，我们尝试给你一些问题自己解决。请不必有压力阅读所有章节或按顺序阅读。请留下反馈。目前，这是一个草稿，将继续修订。谢谢！
 
-*We'd like to acknowledge James Bradbury and Blake Hechtman who derived many of the ideas in this doc.*
+*我们要感谢James Bradbury和Blake Hechtman，他们推导出了本文档中的许多想法。*
 
-<h3 markdown=1 class="next-section">Without further ado, [here is Section 1](roofline) about TPU rooflines.</h3>
+<h3 markdown=1 class="next-section">事不宜迟，[这里是第1节](roofline)关于TPU性能上限分析。</h3>
 
-## Links to Sections
+## 章节链接
 
-*This series is probably longer than it needs to be, but we hope that won't deter you. The first three chapters are preliminaries and can be skipped if familiar, although they introduce notation used later. The final three parts might be the most practically useful, since they explain how to work with real models.*
+*这个系列可能比需要的要长，但我们希望这不会阻止你。前三章是预备知识，如果熟悉可以跳过，尽管它们介绍了后面使用的符号。最后三个部分可能是最实用的，因为它们解释了如何与真实模型一起工作。*
 
-**Part 1: Preliminaries**
+**第一部分：预备知识**
 
-* [**Chapter 1: A Brief Intro to Roofline Analysis**](roofline). Algorithms are bounded by three things: compute, communication, and memory. We can use these to approximate how fast our algorithms will run.
+* [**第1章：性能上限分析简介**](roofline)。算法受三个因素限制：计算、通信和内存。我们可以使用这些来近似估算算法的运行速度。
 
-* [**Chapter 2: How to Think About TPUs**](tpus). How do TPUs work? How does that affect what models we can train and serve?
+* [**第2章：如何理解TPU**](tpus)。TPU如何工作？这如何影响我们可以训练和服务的模型？
 
-* [**Chapter 3: Sharded Matrices and How to Multiply Them**](sharding). Here we explain model sharding and multi-TPU parallelism by way of our favorite operation: (sharded) matrix multiplications.
+* [**第3章：分片矩阵及其乘法**](sharding)。在这里，我们通过我们最喜欢的操作：（分片）矩阵乘法，来解释模型分片和多TPU并行性。
 
-**Part 2: Transformers**
+**第二部分：Transformer**
 
-* [**Chapter 4: All the Transformer Math You Need to Know**](transformers). How many FLOPs does a Transformer use in its forward and backwards pass? Can you calculate the number of parameters? The size of its KV caches? We work through this math here.
+* [**第4章：你需要知道的所有Transformer数学**](transformers)。Transformer在前向和后向传递中使用多少FLOPs？你能计算参数数量吗？其KV缓存（Key-Value缓存，用于存储注意力机制的键值对以减少重复计算）的大小？我们在这里详细讲解这些数学。
 
-* [**Chapter 5: How to Parallelize a Transformer for Training**](training). FSDP. Megatron sharding. Pipeline parallelism. Given some number of chips, how do I train a model of a given size with a given batch size as efficiently as possible?
+* [**第5章：如何为训练并行化Transformer**](training)。FSDP。Megatron分片。流水线并行。给定一定数量的芯片，如何尽可能高效地训练给定大小和批次的模型？
 
-* [**Chapter 6: Training LLaMA 3 on TPUs**](applied-training). How would we train LLaMA 3 on TPUs? How long would it take? How much would it cost?
+* [**第6章：在TPU上训练LLaMA 3**](applied-training)。我们如何在TPU上训练LLaMA 3？需要多长时间？成本是多少？
 
-* [**Chapter 7: All About Transformer Inference**](inference). Once we've trained a model, we have to serve it. Inference adds a new consideration — latency — and changes up the memory landscape. We'll talk about how disaggregated serving works and how to think about KV caches.
+* [**第7章：Transformer推理全解析**](inference)。训练完模型后，我们需要部署它进行推理。推理增加了一个新的考虑因素——延迟——并改变了内存格局。我们将讨论解耦式服务如何工作以及如何思考KV缓存（Key-Value缓存，用于存储注意力机制的键值对以减少重复计算）。
 
-* [**Chapter 8: Serving LLaMA 3 on TPUs**](applied-inference). How much would it cost to serve LLaMA 3 on TPU v5e? What are the latency/throughput tradeoffs?
+* [**第8章：在TPU上服务LLaMA 3**](applied-inference)。在TPU v5e上服务LLaMA 3需要多少成本？延迟和吞吐量之间的权衡是什么？
 
-**Part 3: Practical Tutorials**
+**第三部分：实践教程**
 
-* [**Chapter 9: How to Profile TPU Code**](profiling). Real LLMs are never as simple as the theory above. Here we explain the JAX + XLA stack and how to use the JAX/TensorBoard profiler to debug and fix real issues.
+* [**第9章：如何分析TPU代码性能**](profiling)。真实的LLM从来不像上面的理论那么简单。这里我们解释JAX + XLA堆栈以及如何使用JAX/TensorBoard性能分析器来调试和修复实际问题。
 
-* [**Chapter 10: Programming TPUs in JAX**](jax-stuff). JAX provides a bunch of magical APIs for parallelizing computation, but you need to know how to use them. Fun examples and worked problems.
+* [**第10章：在JAX中编程TPU**](jax-stuff). JAX提供了一系列神奇的API用于并行化计算，但你需要知道如何使用它们。有趣的示例和练习题。
 
-**Part 4: Conclusions and Bonus Content**
+**第四部分：结论和附加内容**
 
-* [**Chapter 11: Conclusions and Further Reading**](conclusion). Closing thoughts and further reading on TPUs and LLMs.
+* [**第11章：结论和进一步阅读**](conclusion). 关于TPU和LLM的总结性思考和进一步阅读材料。
 
-* [**Chapter 12: How to Think About GPUs**](gpus). A bonus section about GPUs, how they work, how they're networked, and how their rooflines differ from TPUs.
+* [**第12章：如何理解GPU**](gpus). 关于GPU的附加章节，介绍GPU如何工作、如何联网，以及它们的性能上限分析与TPU有何不同。
 

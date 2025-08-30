@@ -1,8 +1,8 @@
 ---
 layout: distill
-title: "Programming TPUs in JAX"
+title: "在JAX中编程TPU"
 # permalink: /main/
-description: "How to use JAX to program TPUs efficiently! Much of this section is taken from <a href='https://jax.readthedocs.io/en/latest/jep/14273-shard-map.html'>here</a>. You can run the code examples in this section with free TPUs on <a href='https://colab.sandbox.google.com/'>Google Colab</a>."
+description: "如何使用JAX高效编程TPU！本节的大部分内容取自<a href='https://jax.readthedocs.io/en/latest/jep/14273-shard-map.html'>这里</a>。您可以在<a href='https://colab.sandbox.google.com/'>Google Colab</a>上使用免费的TPU运行本节中的代码示例。"
 date: 2025-02-04
 future: true
 htmlwidgets: true
@@ -51,12 +51,12 @@ authors:
 #     for hyperlinks within the post to work correctly.
 #   - please use this format rather than manually creating a markdown table of contents.
 toc:
-  - name: "How Does Parallelism Work in JAX?"
+  - name: "JAX中的并行性如何工作？"
   - subsections:
-    - name: "Auto sharding mode"
-    - name: “Explicit sharding mode”
-    - name: "Manual sharding mode via shard_map"
-  - name: "Worked Problems"
+    - name: "自动分片模式"
+    - name: "显式分片模式"
+    - name: "通过shard_map进行手动分片模式"
+  - name: "实践问题"
 
 # Below is an example of injecting additional post-specific styles.
 # This is used in the 'Layouts' section of this post.
@@ -78,77 +78,76 @@ _styles: >
   }
 ---
 
-## How Does Parallelism Work in JAX?
+## JAX中的并行性如何工作？
 
-JAX supports three schools of thought for multi-device programming:
+JAX支持三种多设备编程的思想流派：
 
-1. **Compiler, take the wheel!** Let the XLA compiler automatically partition arrays and decide what communication to add to facilitate a given program. This lets you take a program that runs on a single device and automatically run it on thousands without changing anything.
-2. **JAX, take the wheel!** Automatic parallelism is great, but sometimes the compiler does something crazy. Explicit sharding lets you write single-device code like usual, but have JAX handle sharding propagation (not the compiler). This means JAX can ask you for clarification when it's unclear what you want.
-3. **Just let me write what I mean, damnit!** While compilers are nice, they sometimes do the wrong thing and add communication you don't intend. Sometimes we want to be explicit about exactly what communication you intend to run.
+1. **编译器，你来掌舵！** 让XLA编译器自动对数组进行分区，并决定添加什么通信来促进给定程序的执行。这让你可以将一个在单个设备上运行的程序，无需任何更改就能在数千个设备上自动运行。
+2. **JAX，你来掌舵！** 自动并行性很好，但有时编译器会做一些疯狂的事情。显式分片让你可以像往常一样编写单设备代码，但让JAX处理分片传播（而不是编译器）。这意味着当不清楚你想要什么时，JAX可以要求你澄清。
+3. **就让我写我想表达的意思，该死的！** 虽然编译器很好，但有时它们会做错事情，并添加你不想要的通信。有时我们想要明确指定你打算运行的通信。
 
-| Mode | View? | Explicit sharding? | Explicit Collectives? |
+| 模式 | 视图？ | 显式分片？ | 显式集合通信？ |
 |:---:|:---:|:---:|:---:|
-| Auto | Global | ❌ | ❌ |
-| Explicit | Global | ✅ | ❌ |
-| Manual | Per-device | ✅ | ✅ |
+| Auto | 全局 | ❌ | ❌ |
+| Explicit | 全局 | ✅ | ❌ |
+| Manual | 每设备 | ✅ | ✅ |
 
-Correspondingly, JAX provides APIs for each of these modes:
+相应地，JAX为每种模式提供了API：
 
-1. `jax.jit` (with `Auto` mesh axes) lets you take any existing JAX function and call it with sharded inputs. JAX then uses XLA's [Shardy](https://openxla.org/shardy) compiler which automatically parallelizes the program. XLA will add communication for you (AllGathers, ReduceScatters, AllReduces, etc.) when needed to facilitate existing operations. While it isn't perfect, it usually does a decent job at automatically scaling your program to any number of chips without code changes.
-2. `jax.jit` with `Explicit` mesh axes looks similar to (1), but lets JAX handle the sharding propagation instead of XLA. That means the sharding of an array is actually part of the JAX type system, and JAX can error out when it detects ambiguous communication and lets the user resolve it.
-3. `jax.shard_map` is the more manual counterpart. You get a device-local view of the program and have to write any communication you want explicitly. Have a sharded array and want the whole thing on each device? Add a `jax.lax.all_gather`. Want to sum an array across your devices? Add a `jax.lax.psum` (an AllReduce). Programming is harder but far less likely to do something you don't want.
+1. `jax.jit`（使用`Auto`网格轴）让你可以获取任何现有的JAX函数并使用分片输入调用它。然后JAX使用XLA的[Shardy](https://openxla.org/shardy)编译器自动并行化程序。当需要促进现有操作时，XLA会为你添加通信（AllGathers、ReduceScatters、AllReduces等）。虽然它不完美，但通常在无需代码更改的情况下，能很好地将你的程序自动扩展到任意数量的芯片上。
+2. `jax.jit`与`Explicit`网格轴看起来类似于（1），但让JAX处理分片传播而不是XLA。这意味着数组的分片实际上是JAX类型系统的一部分，当JAX检测到模糊的通信时，它会报错并让用户解决它。
+3. `jax.shard_map`是更手动的对应方案。你获得程序的设备本地视图，必须明确编写你想要的任何通信。有一个分片数组并希望在每个设备上拥有整个数组？添加一个`jax.lax.all_gather`。想要在你的设备上对数组求和？添加一个`jax.lax.psum`（AllReduce）。编程更困难，但不太可能做你不想做的事情。
 
-<h3 id="auto-sharding-mode">Auto sharding mode</h3>
+<h3 id="auto-sharding-mode">自动分片模式</h3>
 
-jax.jit plays two roles inside JAX. As the name suggests, it "just-in-time" compiles a function from Python into bytecode (via XLA/HLO/LLO) so it runs faster. But if the input is sharded or the user specifies an `in_sharding` or `out_sharding`, it also lets XLA distribute the computation across multiple devices and add communication as needed. For example, here's how you could write a sharded matmul using jax.jit:
+jax.jit在JAX内部扮演两个角色。顾名思义，它"及时"地将函数从Python编译成字节码（通过XLA/HLO/LLO），使其运行更快。但如果输入是分片的或用户指定了`in_sharding`或`out_sharding`，它还让XLA在多个设备之间分配计算并根据需要添加通信。例如，以下是如何使用jax.jit编写分片矩阵乘法：
 
 ```py
 import jax
 import jax.numpy as jnp
 
-# Running on an TPU v5e 4x2. This assigns names to the two physical axes of the hardware.
+# 在TPU v5e 4x2上运行。这为硬件的两个物理轴分配名称。
 mesh = jax.make_mesh(axis_shapes=(4, 2), axis_names=('X', 'Y'))
 
-# This tells JAX to use this mesh for all operations, so you can just specify the PartitionSpec P.
+# 这告诉JAX对所有操作使用此网格，因此你只需指定PartitionSpec P。
 jax.set_mesh(mesh)
 
-# We create a matrix W and input activations In sharded across our devices.
+# 我们创建一个矩阵W和输入激活In，在设备间分片。
 In = jnp.zeros((8, 2048), dtype=jnp.bfloat16, device=jax.NamedSharding(mesh, jax.P('X', 'Y')))
 W = jnp.zeros((2048, 8192), dtype=jnp.bfloat16, device=jax.NamedSharding(mesh, jax.P('Y', None)))
 
 def matmul_square(In, W):
   return jnp.einsum('bd,df->bf', jnp.square(In), W)
 
-# We can explicitly compile the sharded matmul function here. This adds all the
-# necessary comms (e.g. an AllReduce after the matmul).
+# 我们可以在这里显式编译分片矩阵乘法函数。这添加了所有必要的通信（例如矩阵乘法后的AllReduce）。
 jit_matmul = jax.jit(matmul_square, out_shardings=jax.P('X', None)).lower(In, W).compile()
 
 out = jit_matmul(In, W)
 ```
 
-This will run automatically with any sharding and partition the computation across our devices. **But what's actually happening at the hardware level?**
+这将自动以任何分片方式运行，并在我们的设备间分配计算。**但在硬件层面实际发生了什么？**
 
-1. First we create In and W sharded across our devices<d-footnote>Notice how we did this.  This is one way to create an array with a particular sharding (i.e. by adding the device argument to the creation function). Another one is to create an array normally with `jnp.array(....)` and then do e.g. `jax.device_put(..., P('x', 'y'))`.  Yet another is to write a function which creates the array you want, and jit-compile it with `out_shardings` being what you want.</d-footnote>. W is sharded 2 way along the contracting dimension, while In is sharded 4-ways (along both the contracting and output dimensions). This corresponds to a sharding W[D<sub>X</sub>, F] and In[B<sub>X</sub>, D<sub>Y</sub>], aka a kind of model and data parallelism.
-2. If we were running this locally (i.e. on one device), `matmul_square` would simply square the input and perform a simple matmul. But because we specify the `out_shardings` as `P('X', None)`, the output will be sharded along the batch but replicated across the model dimension and will require an AllReduce to compute.
+1. 首先我们在设备间创建分片的In和W<d-footnote>注意我们是如何做到的。这是创建具有特定分片的数组的一种方法（即通过向创建函数添加device参数）。另一种方法是使用`jnp.array(....)`正常创建数组，然后执行例如`jax.device_put(..., P('x', 'y'))`。还有一种是编写创建你想要的数组的函数，并使用`out_shardings`为你想要的内容进行jit编译。</d-footnote>。W在收缩维度上分片2路，而In分片4路（在收缩和输出维度上）。这对应于分片W[D<sub>X</sub>, F]和In[B<sub>X</sub>, D<sub>Y</sub>]，也就是一种模型和数据并行性。
+2. 如果我们在本地运行（即在一个设备上），`matmul_square`将简单地对输入进行平方并执行简单的矩阵乘法。但因为我们指定`out_shardings`为`P('X', None)`，输出将在批次维度上分片，但在模型维度上复制，并且需要AllReduce来计算。
 
-Using our notation from previous sections, this will likely do something like
+使用我们前面几节的符号表示，这可能会做类似的事情：
 
 1. Out[B<sub>X</sub>, F] { U<sub>Y</sub> } = In[B<sub>X</sub>, D<sub>Y</sub>] \*<sub>D</sub> W[D<sub>Y</sub>, F]
 2. Out[B<sub>X</sub>, F] = **AllReduce**(Out[B<sub>X</sub>, F] { U<sub>Y</sub> })
 
-`jax.jit` will add this for us automatically! We can actually print the HLO with `jit_matmul.as_text()` and see the following HLO (abbreviated dramatically):
+`jax.jit`会自动为我们添加这个！我们可以用`jit_matmul.as_text()`实际打印HLO，并看到以下HLO（大幅缩写）：
 
 ```py
-# This fusion is the actual matmul of the sharded inputs and matrix
+# 这个融合是分片输入和矩阵的实际矩阵乘法
 %fusion = bf16[2,8192]{1,0:T(4,128)(2,1)S(1)} fusion(bf16[2,1024]{1,0:T(4,128)(2,1)} %param, bf16[8192,1024]{1,0:T(8,128)(2,1)S(1)} %copy-done)
 
-# We reduce the partially summed results across devices
+# 我们在设备间减少部分求和的结果
 ROOT %AllReduce = bf16[2,8192]{1,0:T(4,128)(2,1)} AllReduce(bf16[2,8192]{1,0:T(4,128)(2,1)S(1)} %fusion)
 ```
 
-We can see the matmul (the fusion) and the AllReduce above. Pay particular attention to the shapes. `bf16[2, 1024]` is a local view of the activations, since our `batch_size=8` is split across 4 devices and our `d_model=2048` is likewise split 2 ways.
+我们可以看到上面的矩阵乘法（融合）和AllReduce。特别注意形状。`bf16[2, 1024]`是激活的本地视图，因为我们的`batch_size=8`在4个设备间分割，我们的`d_model=2048`同样分割2路。
 
-**This is pretty magical!** No matter how complicated our program is, [Shardy]((https://openxla.org/shardy)) and jit will attempt to find shardings for all the intermediate activations and add communication as needed. With that said, Shardy has its flaws. It can make mistakes. Sometimes you'll look at a profile and notice something has gone wrong. A giant AllGather takes up 80% of the profile, where it doesn't need to. When this happens, we can try to correct the compiler by explicitly annotating intermediate tensors with `jax.lax.with_sharding_constraint`. For instance, with two matmuls I can force the intermediate activations to be sharded along the `y` dimension (not that this is a good idea) with the following:
+**这相当神奇！** 无论我们的程序多么复杂，[Shardy]((https://openxla.org/shardy))和jit都会尝试为所有中间激活找到分片方式，并根据需要添加通信。话虽如此，Shardy有其缺陷。它可能会犯错。有时你会查看性能分析文件并发现出了问题。一个巨大的AllGather占用了性能分析文件的80%，而实际上并不需要。当这种情况发生时，我们可以尝试通过使用`jax.lax.with_sharding_constraint`显式注释中间张量来纠正编译器。例如，对于两个矩阵乘法，我可以强制中间激活在`y`维度上分片（这不是一个好主意），如下所示：
 
 ```py
 import jax
@@ -162,22 +161,22 @@ def matmul(x, Win, Wout):
   return jnp.einsum('bf,df->bd', hidden, Wout)
 ```
 
-This makes up like 60% of JAX parallel programming in the automatic partitioning world where you control the intermediate shardings via `jax.lax.with_sharding_constraint`. But "compiler tickling" is famously not a fun programming model. You could annotate every intermediate variable and still not know if you'll get the right outcome. Instead, what if JAX itself could handle and control sharding propagation?
+这构成了JAX并行编程在自动分区世界中的约60%，在那里你通过`jax.lax.with_sharding_constraint`控制中间分片。但"编译器调优"显然不是一个有趣的编程模型。你可以注释每个中间变量，但仍然不知道是否会得到正确的结果。相反，如果JAX本身能够处理和控制分片传播呢？
 
-<h3 id="explicit-sharding-mode">Explicit sharding mode</h3>
+<h3 id="explicit-sharding-mode">显式分片模式</h3>
 
-Explicit sharding (or “sharding in types”) looks a lot like automatic sharding, but sharding propagation happens at the JAX level! Each JAX operation has a sharding rule that takes the shardings of the op's arguments and produces a sharding for the op's result. You can see the resulting sharding using `jax.typeof`:
+显式分片（或"类型中的分片"）看起来很像自动分片，但分片传播发生在JAX层面！每个JAX操作都有一个分片规则，它接受操作参数的分片并为操作结果生成分片。你可以使用`jax.typeof`查看结果分片：
 
 ```py
 import jax
 import jax.numpy as jnp
 import jax.sharding as shd
 
-# Running on an TPU v5e 2x2. This assigns names to the two physical axes of the hardware.
+# 在TPU v5e 2x2上运行。这为硬件的两个物理轴分配名称。
 mesh = jax.make_mesh(axis_shapes=(2, 2), axis_names=('X', 'Y'),
                                        axis_types=(shd.AxisType.Explicit, shd.AxisType.Explicit))
 
-# This tells JAX to use this mesh for all operations, so you can just specify the PartitionSpec P.
+# 这告诉JAX对所有操作使用此网格，因此你只需指定PartitionSpec P。
 jax.set_mesh(mesh)
 
 x = jax.device_put(np.arange(16).reshape(8, 2), P('X', 'Y'))
@@ -192,10 +191,10 @@ def f(x):
 f(x)
 ```
 
-As you can see, JAX propagated the sharding from input (`x`) to output (`x`) which are inspectable at trace-time via `jax.typeof`. For most operations these rules are simple and obvious because there's only one reasonable choice (e.g. elementwise ops retain the same sharding). But for some operations it's ambiguous how to shard the result in which case JAX throws a trace-time error and we ask the programmer to provide an `out_sharding` argument explicitly (e.g. jnp.einsum, jnp.reshape, etc). Let's see another example where you have conflicts:
+正如你所看到的，JAX将分片从输入（`x`）传播到输出（`x`），这些可以通过`jax.typeof`在追踪时检查。对于大多数操作，这些规则简单明了，因为只有一个合理的选择（例如，元素级操作保留相同的分片）。但对于某些操作，如何对结果进行分片是模糊的，在这种情况下JAX会抛出追踪时错误，我们要求程序员明确提供`out_sharding`参数（例如jnp.einsum、jnp.reshape等）。让我们看另一个有冲突的例子：
 
 ```py
-# We create a matrix W and input activations In sharded across our devices.
+# 我们创建一个矩阵W和输入激活In，在设备间分片。
 In = jnp.zeros((8, 2048), dtype=jnp.bfloat16, out_sharding=jax.P('X', 'Y'))
 W = jnp.zeros((2048, 8192), dtype=jnp.bfloat16, out_sharding=jax.P('Y', None))
 
@@ -205,16 +204,16 @@ def matmul_square(In, W):
   print(jax.typeof(W))  # bfloat16[2048@Y, 8192]
   return jnp.einsum('bd,df->bf', jnp.square(In), W)
 
-matmul_square(In, W)  # This will error
+matmul_square(In, W)  # 这将报错
 ```
 
-This code errors with `Contracting dimensions are sharded and it is ambiguous how the output should be sharded. Please specify the output sharding via the `out_sharding` parameter. Got lhs_contracting_spec=('Y',) and rhs_contracting_spec=('Y',)`
+这段代码会报错，提示`Contracting dimensions are sharded and it is ambiguous how the output should be sharded. Please specify the output sharding via the `out_sharding` parameter. Got lhs_contracting_spec=('Y',) and rhs_contracting_spec=('Y',)`
 
-This is awesome because how the output of einsum should be sharded is ambiguous. The output sharding can be:
-* P('X', 'Y') which will induce a reduce-scatter or
-* P('X', None) which will induce an all-reduce
+这很棒，因为einsum的输出应该如何分片是模糊的。输出分片可以是：
+* P('X', 'Y')这将引发reduce-scatter或
+* P('X', None)这将引发all-reduce
 
-Unlike Auto mode, explicit mode errors out when it detects ambiguous communication and requires the users to resolve it. So here you can do:
+与Auto模式不同，显式模式在检测到模糊的通信时会报错，并要求用户解决它。所以在这里你可以这样做：
 
 ```py
 @jax.jit
@@ -225,7 +224,7 @@ out = matmul_square(In, W)
 print(jax.typeof(out))  # bfloat16[8@X,8192@Y]
 ```
 
-Auto mode and Explicit mode can be composed via `jax.sharding.auto_axes` and `jax.sharding.explicit_axes` APIs. This is a [great doc to read](https://docs.jax.dev/en/latest/notebooks/explicit-sharding.html) for more information.
+Auto模式和Explicit模式可以通过`jax.sharding.auto_axes`和`jax.sharding.explicit_axes` API组合。这是一篇[值得阅读的文档](https://docs.jax.dev/en/latest/notebooks/explicit-sharding.html)，以获取更多信息。
 
 <h3 id="manual-sharding-mode-via-shard_map">shard_map: explicit parallelism control over a program</h3>
 
